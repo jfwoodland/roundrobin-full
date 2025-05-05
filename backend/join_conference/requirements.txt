@@ -1,0 +1,4 @@
+flask
+twilio
+requests
+google-cloud-firestore
