@@ -13,12 +13,9 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   doc,
-  getDoc,
   setDoc,
   updateDoc,
   getDocs,
-  query,
-  where,
   collection,
 } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
@@ -44,29 +41,37 @@ const AcceptInvitePage = () => {
   useEffect(() => {
     const fetchInvite = async () => {
       if (!token) {
+        console.error("Missing invite token.");
         setError("Missing invite token.");
         return;
       }
 
-      const q = query(collection(db, "invites"), where("token", "==", token));
-      const snapshot = await getDocs(q);
+      try {
+        console.log("Sending POST request to validate_invite with token:", token);
+        const response = await fetch("https://us-central1-roundrobin-clean.cloudfunctions.net/validate_invite", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ token }),
+        });
 
-      if (snapshot.empty) {
-        setError("Invalid or expired invite link.");
-        return;
+        console.log("Response status:", response.status);
+        const data = await response.json();
+        console.log("Response data:", data);
+
+        if (!response.ok) {
+          console.error("Error validating invite:", data.error || "Unknown error");
+          setError(data.error || "Failed to validate invite.");
+          return;
+        }
+
+        setInvite(data);
+        setAccountName(data.accountName || "an account");
+      } catch (err) {
+        console.error("An error occurred while validating the invite:", err);
+        setError("An error occurred while validating the invite.");
       }
-
-      const docData = snapshot.docs[0].data();
-      const docId = snapshot.docs[0].id;
-
-      if (docData.used) {
-        setError("This invite has already been used.");
-        return;
-      }
-
-      const accountSnap = await getDoc(doc(db, "accounts", docData.accountId));
-      setAccountName(accountSnap.exists() ? accountSnap.data().name : "an account");
-      setInvite({ id: docId, ...docData });
     };
 
     fetchInvite();
